@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>The Woods of Tal'Quessir</title>
+<!-- Prog 209 Project 2: Tile Based Game -->
+<!-- Mark Willisford -->
+<!-- Due: 19Feb17 -->
+<!-- 17Jan17 -->
+<!-- 18Jan17 UPDATE LOG; Added the fighting function and fixed a minor error in the final score math. Added the creeper, creeper AI, such as it is,
+		an audio file that plays when the creeper gets you. If you've ever played Minecraft then you should recognize it. Start screen using the model
+		class, Rock and roll. Time to validate. One last thing I may want to add is changing the players image tile based on if they have a sword or 
+		armor. That is why the images are already part of the project, not sure when I'll get around to it. -->
+
+
+<!-- jigsaw.w3.org/css-validator reports "Congratulations! No Error Found. This document validates as CSS level 3" -->
+
+
+
+<!-- validator.w3.org reports "No errors or warnings to show." -->
+
+
+<style type="text/css">
+	#container{
+		display: block;
+		position: absolute;
+		top: 20px;
+		left: 20px;
+		width: 600px;
+		height: 600px;
+		border: black solid;
+		background-color: green;
+	}
+
+	.cell{
+		display: block;
+		position: absolute;
+		width: 75px;
+		height: 75px;
+	}
+
+	#sidebar{
+		display: block;
+		width: 300px;
+		top: 10px;
+		left: 645px;
+		position: absolute;
+	}	
+
+	#game{
+		top: 5px;
+		left: 5px;
+		width: 960px;
+		height: 630px;
+		background-color: white;
+		border: 2px dashed black;
+		position: absolute;
+	}
+	
+	/* The model (background) */
+	.model {
+		display: none; 					/* Hidden by default */
+		position: fixed; 				/* Stay in place */
+		z-index: 1; 					/* Sit on top */
+		left: 0;
+		top: 0;
+		width: 100%; 					/* Full width */
+		height: 100%; 					/* Full height */
+		overflow: auto; 				/* Enable scroll if needed */
+		background-color: rgb(0,0,0); 	/* Fallback color */
+		background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+	}
+	
+	/* model Content/Box */
+	.model-content {
+		background-color: #fefefe;
+		margin: 10% auto; 				
+		padding: 20px;
+		border: 1px solid #888;
+		width: 75%; 					
+	}
+	
+	/* The Close Button */
+	.close {
+		color: #aaa;
+		float: right;
+		font-size: 28px;
+		font-weight: bold;
+	}
+
+	.close:hover,
+	.close:focus {
+		color: black;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	
+</style>
+</head>
+
+<body>
+	<!-- I will use a model for my start screen -->
+	<!-- The model -->
+	<div id="mymodel" class="model">
+
+		<!-- model content -->
+		<div class="model-content">
+			<span class="close">&times;</span>
+			<h1>Spider Forests of Tal'Quessir</h1>
+			<p>Did you wonder what would have happened if you had run past that spider outside the village in the last game? In this game, use the arrow keys to explore
+				the spider forest but watch out for the creeper!</p>
+		</div>
+	</div>
+	
+	<section id="game">
+		<div id="container"></div>
+		<div id="sidebar">
+			<h2>Spider Forests of Tal'Quessir</h2>
+			<p id="output"></p>
+		</div>
+	</section>
+	
+	<script>
+		// Get the model
+		let model = document.getElementById('mymodel');
+
+		// Get the <span> element that closes the model
+		let span = document.getElementsByClassName("close")[0];
+
+		// When the page loads, open the model 
+		window.onload = function(){
+			console.log( "ready!" );
+			model.style.display = "block";
+		}
+		
+		// When the player clicks on <span> (x), close the model
+		span.onclick = function() {
+			model.style.display = "none";
+		}
+		// When the player clicks anywhere outside of the model, close it
+		window.onclick = function(event) {
+			if (event.target == model) {
+				model.style.display = "none";
+			}
+		}
+	</script>
+	
+	<script>
+		// audio element
+		let audioElement = document.createElement('audio');
+		audioElement.setAttribute('src', "Images/CreeperExplosionSoundEffect.ogg");		// I know I should have put it in a folder labled sounds, 
+																						// I'm only using one. 
+		
+		// Get a reference to the container and output
+		let container = document.querySelector("#container");
+		let output = document.querySelector("#output");
+
+		//Add a keyboard listener
+		window.addEventListener("keydown", keydownHandler, false);
+
+		// The game map
+		let map =
+		[
+		  [0, 2, 0, 0, 0, 0, 0, 4],
+		  [0, 0, 0, 1, 0, 3, 0, 0],
+		  [0, 1, 0, 0, 0, 0, 0, 0],
+		  [3, 0, 0, 0, 2, 0, 1, 0],
+		  [0, 2, 0, 1, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 2, 0, 3, 0],
+		  [0, 2, 0, 1, 0, 0, 0, 2],
+		  [0, 0, 0, 0, 0, 1, 0, 0]
+		];
+		
+		//The game objects map
+		let gameObjects =
+		[
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [0, 0, 6, 0, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [0, 0, 0, 0, 0, 0, 0, 0],
+		  [5, 0, 0, 0, 0, 0, 0, 0]
+		];
+
+		// Map code
+		let GRASS = 0;
+		let CHEST = 1;
+		let SPIDER = 2;
+		let TREE = 3;
+		let BRIDGE = 4;
+		let PLAYER = 5;
+		let CREEPER = 6;
+		
+		//Arrow key codes
+		var UP = 38;
+		var DOWN = 40;
+		var RIGHT = 39;
+		var LEFT = 37;
+		
+		// The size of each cell
+		var SIZE = 75;
+
+		// The number of rows and columns
+		var ROWS = map.length;
+		var COLUMNS = map[0].length;
+
+		// An automatic way of setting the Player and creeper position
+		let playerRow; 
+		let playerColumn; 
+		let creeperRow;
+		let creeperColumn;
+		
+		for(var row = 0; row < ROWS; row++) 
+		{	
+			for(var column = 0; column < COLUMNS; column++) 
+			{
+				if(gameObjects[row][column] === PLAYER)
+				{ 
+					playerRow = row;
+					playerColumn = column;
+				}
+				if(gameObjects[row][column] === CREEPER)
+				{ 
+					creeperRow = row;
+					creeperColumn = column;
+				}				
+			}
+		}	
+		
+		//The game variables
+		let food = 10;
+		let gold = 10;				// I am leaving this in because I will eventually build a connection between the last project and this one.
+		let experience = 0;
+		let gameMessage = "Use the arrow keys to find your way through the forest.";
+		let armor = 0;
+		let weapon = 0;
+		
+		draw();
+	
+		function keydownHandler(event){
+			switch(event.keyCode)		// TODO! Add a check for trees?
+			{
+				case UP:     
+					// Find out if the players move will
+					// be within the playing field
+					if(playerRow > 0)
+					{
+						// If it is, clear the players current cell
+						gameObjects[playerRow][playerColumn] = 0;
+					  
+						// Subract 1 from the players row
+						// to move it up one row on the map
+						playerRow--;
+					  
+						// Apply the players new updated position to the array
+						gameObjects[playerRow][playerColumn] = PLAYER;
+					}
+					break;
+				  
+				case DOWN:
+					if(playerRow < ROWS - 1)
+					{
+						gameObjects[playerRow][playerColumn] = 0;
+						playerRow++;
+						gameObjects[playerRow][playerColumn] = PLAYER;
+					}
+					break;
+					
+				case LEFT:
+					if(playerColumn > 0)
+					{
+						gameObjects[playerRow][playerColumn] = 0;
+						playerColumn--;
+						gameObjects[playerRow][playerColumn] = PLAYER;
+					}
+					break;  
+				
+				case RIGHT:
+					if(playerColumn < COLUMNS - 1)
+					{
+						gameObjects[playerRow][playerColumn] = 0;
+						playerColumn++;
+						gameObjects[playerRow][playerColumn] = PLAYER;
+					}
+					break; 
+			}  
+		  
+			//find out where the player is
+			switch(map[playerRow][playerColumn])
+			{
+				case GRASS:
+					gameMessage = "It is a beautiful day for a walk";
+					break;
+				
+				case CHEST:
+					Open();
+					break; 
+				
+				case SPIDER:
+					Fight();
+					break; 
+				  
+				case TREE:
+					PickApples();
+					break;  
+					
+				case BRIDGE:
+					endGame();
+					break;  			
+			}  
+			
+			//Move the creeper
+			moveCreeper();
+			  
+			//Find out if the player is touching the creeper
+			if(gameObjects[playerRow][playerColumn] === CREEPER)
+			{
+				// Here is our sound!!  Creeper explosion
+				audioElement.play();
+				endGame();
+			}
+			
+			// It costs food to move
+			food--;
+			
+			//Find out if the player has run out of food 
+			if(food <= 0)
+			{
+				endGame();
+			}
+			
+			draw();
+		}
+		
+		function Open(){
+			// Chance of a weapon, armor, or food but also possibly a Enderman that steals your food / armor / weapon
+			console.log("Opening Chest");
+
+			let num = Math.floor(Math.random() * (7 - 1 + 1)) + 1;
+			console.log(num);
+			switch(num){
+				case 1:
+				case 2:	// weapon
+					// check to see if you already have a weapon
+					if ( weapon === 1){
+						gameMessage = "You found a sword, unfortunately you already have one";
+					}
+					else{
+						// if needed, set the weapon to a +1 Sword
+						gameMessage = "You found a sword! Those spiders should be easier now";
+						weapon = 1;
+					}
+					break;
+				case 3:
+				case 4:	// armor
+					// check to see if you already have armor
+					if ( armor === 1){
+						gameMessage = "You found some armor, unfortunately you are already wearing some";
+					}
+					else{
+						// if needed, set the armor to a +1 breatplate
+						gameMessage = "You found some armor! Those spiders have nothing on you now";
+						armor = 1;
+					}					
+					break;
+				case 5:
+				case 6:	// food
+					gameMessage = "You found food!";
+					let foodAvailable = Math.floor(Math.random() * (4 - 2 + 1)) + 2;
+					food = food + foodAvailable;
+					break;
+				case 7:	// Enderman!!
+					gameMessage = "An Enderman suprises you!";
+					// This variable will be the max in our random math function to find out what the Enderman steals
+					let max = 1;	
+					let wOrS = 0;	// weapon Or Sword will be used to distiguish between them.
+					if (weapon === 1){
+						max++;
+						wOrS = 1;
+					}
+					if (armor === 1){
+						max++;
+						wOrS = 2;
+					}
+					
+					// use a random method to find out what he takes
+					let stolen = Math.floor(Math.random() * (max - 1 + 1)) + 1;
+					
+					switch(stolen){
+						case 1:		// He took food
+							gameMessage += " He stole some of your food!"
+							food = food - Math.floor(Math.random() * (2 - 1 + 1)) + 1;
+							break;
+						case 2:		// We don't know if he took armor or weapon because we don't know which caused the incrimenting of the max yet
+							if(wOrS === 1){		// He took the sword
+								gameMessage += " He stole the sword right out of your hand!"
+								weapon = 0;		
+							}
+							else{				// He took the Armor
+								gameMessage += " He stole the armor right off your back!"
+								armor = 0;						
+							}
+							break;
+						case 3:		// He took your armor!
+							gameMessage += " He stole the armor right off your back!"
+							armor = 0;		
+							break;					
+					}
+				
+					break;
+			}
+		}
+		
+		function Fight(){
+			// fight a spider
+			console.log("Fighting the Spider");
+			
+			
+			// The players combat score before armor and weapon
+			var playerCombatScore = Math.ceil((food) / 2);
+			  
+			// A random number between 1 and the players combat score
+			var spiderCombatScore = Math.ceil(Math.random() * playerCombatScore * 2);
+			  
+			// Now increase combat score for armor and weapons
+			playerCombatScore = playerCombatScore + armor + weapon;
+			
+			
+			if(spiderCombatScore > playerCombatScore)
+			{
+				// The spider hurts the player
+				var stolenFood = Math.round(spiderCombatScore / 2);
+				food -= stolenFood;
+				
+				// Give the player some experience for trying  
+				experience += 1;
+				
+				// Update the game message
+				gameMessage 
+				= "You fight and LOSE " + stolenFood + " food."
+				+ " Player's combat ability: " + playerCombatScore 
+				+ " Spider's combat ability: " + spiderCombatScore;
+			}
+			else
+			{
+				// You defeat the spider and take it's meat
+				var spiderFood = Math.round(spiderCombatScore / 2);
+				food += spiderFood;
+				
+				// Add some experience  
+				experience += 2;
+				
+				// Update the game message
+				gameMessage 
+				= "You fight and WIN " + spiderFood + " food from the meat of the spider."
+				+ " Player's combat ability: " + playerCombatScore 
+				+ " Spider's combat ability: " + spiderCombatScore;
+			} 			
+		}
+		
+		function PickApples(){
+			// chance of a random number of apples
+			let foodAvailable = Math.floor(Math.random() * (7 - 4 + 1)) + 4;
+			food = food + foodAvailable;
+			
+			// Update the game message
+			gameMessage 
+			= "You find a lovely tree and pick " + foodAvailable + " apples.";
+		}
+		
+		function moveCreeper(){							// TODO add a 33% chance to move AT the player
+			// There are 4 directions that the creeper could, in theory, move
+			let UP = 1;
+			let DOWN = 2;
+			let LEFT = 3;
+			let RIGHT = 4;
+			  
+			// An array to store the valid directions that the creeper is allowed to move in
+			let validDirections = [];
+			  
+			// The selected direction that the creeper will move in
+			let direction = undefined;
+  
+			// The creeper can only move onto grass so we need to find out what kinds of things are in the cells 
+			// that surround the creeper. If the cells are grass, push the corresponding direction into the validDirections array
+			if(creeperRow > 0){
+				let thingAbove = map[creeperRow - 1][creeperColumn];
+				if(thingAbove === GRASS){
+					validDirections.push(UP)
+				}
+			}
+			
+			if(creeperRow < ROWS - 1){ 
+				let thingBelow = map[creeperRow + 1][creeperColumn];
+				if(thingBelow === GRASS){
+					validDirections.push(DOWN)
+				}
+			}
+			if(creeperColumn > 0){
+				let thingToTheLeft = map[creeperRow][creeperColumn - 1];
+				if(thingToTheLeft === GRASS){
+					validDirections.push(LEFT)
+				}
+			} 
+			if(creeperColumn < COLUMNS - 1){
+				let thingToTheRight = map[creeperRow][creeperColumn + 1];
+				if(thingToTheRight === GRASS){
+					validDirections.push(RIGHT)
+				}
+			} 
+			
+			// If a valid direction was found, Randomly choose one of the possible directions and assign it to the direction variable
+			// I also want a 50% chance of moving directly at the player. Pick a number between 1 and 2
+			// Note here, a fun upgrade would be to move directly at the player if within 5 'blocks' just like real creepers. Maybe 
+			// even have "safe zones" like if the player is on a chest or tree.
+			let attack = Math.floor(Math.random() * (2 - 1 + 1)) + 1;
+			// If we picked 1 move at the player
+			if(attack === 1){
+				let columnDistance = Math.abs(creeperColumn-playerColumn);
+				let rowDistance = Math.abs(creeperRow-playerRow);
+				let distance = columnDistance + rowDistance					// this now holds the distance between the creeper and the player
+				
+				// loop through the validDirections array and check the resulting distance. I wanted to use alpha beta pruning here but frankly I don't
+				// need it for a simple step and I'm not spending the time to program a full pathing logic for the creeper for this class.  Sorry.
+				// Maybe that will be a future upgrade. Honestly I'm really not happy with the AI, but this isn't an AI class so . . .   meh. 
+				for (i = 0; i < validDirections.length; i++) { 
+					// A few variables to use for calculations
+					let possibleCreeperRow = creeperRow;
+					let possibleCreeperColumn = creeperColumn;
+					// For each element in the array I need to check which direction it is so I can adjust numbers and run the above formula.
+					switch(validDirections[i]){
+						case UP:
+							possibleCreeperRow = creeperRow - 1;
+							break;
+
+						case DOWN:
+							possibleCreeperRow = creeperRow + 1;
+							break;
+
+						case LEFT:
+							possibleCreeperColumn = creeperColumn - 1;
+							break;
+
+						case RIGHT:
+							possibleCreeperColumn = creeperColumn + 1;
+							break;
+					}
+					
+					// get the possible distance if we go this direction
+					let possibleDistance = Math.abs(possibleCreeperColumn-playerColumn) + Math.abs(possibleCreeperRow-playerRow)
+					
+					// if it is closer to the player then select it as the direction and quit the for loop, no reason to find another option.
+					if (possibleDistance < distance){
+						console.log("I'm attacking, moving " + validDirections[i]);
+						direction = validDirections[i];
+						break;
+					}
+				}
+				
+				//map[creeperRow][creeperColumn]
+				//map[playerRow][playerColumn]
+			}
+			
+			// otherwise move randomly
+			else{
+				if(validDirections.length !== 0)
+				{
+					let randomNumber = Math.floor(Math.random() * validDirections.length);
+					direction = validDirections[randomNumber];
+				}
+			}
+			
+			// Move the creeper in the chosen direction
+			switch(direction){
+				case UP:
+					// Clear the creepers's current cell
+					gameObjects[creeperRow][creeperColumn] = 0;
+					// Subtract 1 from the creeper's row
+					creeperRow--; 
+					// put the creeper's new updated position back into the array
+					gameObjects[creeperRow][creeperColumn] = CREEPER;
+					break;
+
+				case DOWN:
+					// As above . . .    
+					gameObjects[creeperRow][creeperColumn] = 0;
+					creeperRow++;
+					gameObjects[creeperRow][creeperColumn] = CREEPER;
+					break;
+
+				case LEFT:
+					gameObjects[creeperRow][creeperColumn] = 0;
+					creeperColumn--;
+					gameObjects[creeperRow][creeperColumn] = CREEPER;
+					break;
+
+				case RIGHT:
+					gameObjects[creeperRow][creeperColumn] = 0;
+					creeperColumn++;
+					gameObjects[creeperRow][creeperColumn] = CREEPER;
+			}
+		}
+		
+		function endGame(){
+			// See if the player made it out
+			if(map[playerRow][playerColumn] === BRIDGE)
+			{
+				// Calculate the score
+				experienceScore = experience * 2;
+				foodScore = food - 1;
+				var score = foodScore + experienceScore;
+				
+				// Congradulate the Player
+				gameMessage = "You made it through the forest alive! " + "Final Score: " + score; 
+			}
+			// Check if the player was caught by the Creeper
+			else if(gameObjects[playerRow][playerColumn] === CREEPER){
+				gameMessage = "You were blown up by a creeper!";			
+			}
+			// if neither of those, then the player ran out of food
+			else
+			{
+				console.log("in the EndGame/else");
+				// Display the game message if the player has
+				// run out of food
+				if(food <= 0)
+				{
+					gameMessage = " You've run out of food!"; 
+				}
+				
+				gameMessage += " You wander the forest until you starve . . .   Maybe that guard was right not to let you pass"; 
+			}
+			  
+			// Remove the keyboard listener to end the game
+			window.removeEventListener("keydown", keydownHandler, false);
+		}
+		
+		function draw(){
+		
+			// Clear the container of images
+			// from the previous turn
+			if(container.hasChildNodes())
+			{
+				for(var i = 0; i < ROWS * COLUMNS; i++) 
+				{	 
+				  container.removeChild(container.firstChild);
+				}
+			}
+			  
+			// Draw the game by looping through the map arrays
+			for(var row = 0; row < ROWS; row++) 
+			{	
+				for(var column = 0; column < COLUMNS; column++) 
+				{ 
+					// Create a img tag called cell
+					var cell = document.createElement("img");
+
+					// Set the CSS class to "cell"
+					cell.setAttribute("class", "cell");
+
+					// Add the img tag to the <div id="container"> tag
+					container.appendChild(cell);
+
+					// Find the correct image for this map cell
+					switch(map[row][column]){
+					case GRASS:
+						cell.src = "Images/Grass.jpg";
+						break;
+
+					case CHEST:
+						cell.src = "Images/Chest.jpg";
+						break; 
+
+					case SPIDER:
+						cell.src = "Images/Spider.jpg";
+						break; 
+
+					case BRIDGE:
+						cell.src = "Images/Bridge.jpg";
+						break;   
+					  
+					case TREE:
+						cell.src = "Images/Tree.png";
+						break;
+					} 
+				  
+					// Add the Player and Creeper ontop of the map
+					switch(gameObjects[row][column])
+					{
+						case PLAYER:
+							cell.src = "Images/Player.png";
+							break;   
+						case CREEPER:
+							cell.src = "Images/Creeper.jpg";
+							break;
+					} 	  
+				  
+					// Position the cell 
+					cell.style.top = row * SIZE + "px";
+					cell.style.left = column * SIZE + "px";
+				}
+			}
+		
+		//Display the game message
+		output.innerHTML = gameMessage;
+	
+		//Display the player's food, gold, and experience
+		output.innerHTML 
+		+= "<br>Gold: " + gold + ", Food: " 
+		+ food + ", Experience: " + experience;
+		}
+	</script>
+</body>
+</html>
